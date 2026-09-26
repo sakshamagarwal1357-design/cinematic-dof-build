@@ -1,0 +1,52 @@
+name: Build Cinematic DOF
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.2.1'
+
+      - name: Reconstruct Phase 3B source
+        shell: bash
+        run: |
+          cat .build/source.b64.part* | base64 -d > cinematic-dof-source.zip
+          unzip -q cinematic-dof-source.zip
+          test -f cinematic-dof-phase3b-1.21.11/build.gradle
+
+      - name: Build Fabric mod
+        working-directory: cinematic-dof-phase3b-1.21.11
+        run: gradle --no-daemon clean build --stacktrace
+
+      - name: Show build output
+        if: always()
+        shell: bash
+        run: |
+          find cinematic-dof-phase3b-1.21.11/build/libs -maxdepth 1 -type f -print 2>/dev/null || true
+
+      - name: Upload compiled mod
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cinematic-dof-1.21.11
+          path: |
+            cinematic-dof-phase3b-1.21.11/build/libs/*.jar
+            !cinematic-dof-phase3b-1.21.11/build/libs/*-sources.jar
+          if-no-files-found: error
