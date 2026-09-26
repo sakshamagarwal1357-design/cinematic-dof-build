@@ -31,6 +31,13 @@ jobs:
           unzip -q cinematic-dof-source.zip
           test -f cinematic-dof-phase3b-1.21.11/build.gradle
 
+      - name: Apply 1.21.11 compile compatibility patches
+        shell: bash
+        run: |
+          FILE="cinematic-dof-phase3b-1.21.11/src/client/java/com/indiancalm/cinematicdof/render/DoFRenderer.java"
+          sed -i '/import org.lwjgl.opengl.GL11;/a import org.lwjgl.opengl.GL12;' "$FILE"
+          sed -i 's/GL11\.GL_CLAMP_TO_EDGE/GL12.GL_CLAMP_TO_EDGE/g' "$FILE"
+
       - name: Build Fabric mod
         working-directory: cinematic-dof-phase3b-1.21.11
         run: gradle --no-daemon clean build --stacktrace
