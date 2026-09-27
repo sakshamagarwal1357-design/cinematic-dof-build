@@ -27,7 +27,22 @@ jobs:
       - name: Reconstruct final v1.0 source
         shell: bash
         run: |
-          cat .build/final_source.b64.part* | base64 -d > cinematic-dof-final-source.zip
+          cat \
+            .build/final_source.b64.part00 \
+            .build/final_source.b64.part01 \
+            .build/final_source.b64.part02a \
+            .build/final_source.b64.part02b \
+            .build/final_source.b64.part02c \
+            .build/final_source.b64.part03 \
+            .build/final_source.b64.part04 \
+            .build/final_source.b64.part05 \
+            .build/final_source.b64.part06 \
+            .build/final_source.b64.part07 \
+            | base64 -d > cinematic-dof-final-source.zip
+          echo 'Expected ZIP SHA256: 37a32a1fb3660571f9831ea66dbae02a38781f7819b459ef4849741ee5b2983c'
+          sha256sum cinematic-dof-final-source.zip
+          echo '37a32a1fb3660571f9831ea66dbae02a38781f7819b459ef4849741ee5b2983c  cinematic-dof-final-source.zip' | sha256sum -c -
+          unzip -t cinematic-dof-final-source.zip
           unzip -q cinematic-dof-final-source.zip
           test -f cinematic-dof-phase3b-1.21.11/build.gradle
           grep -q 'mod_version=1.0.0+1.21.11' cinematic-dof-phase3b-1.21.11/gradle.properties
