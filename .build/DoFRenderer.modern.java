@@ -73,7 +73,7 @@ public final class DoFRenderer {
                 pass.bindTexture("SceneDepth", main.getDepthAttachmentView(),
                         RenderSystem.getSamplerCache().get(FilterMode.NEAREST));
                 pass.setUniform("DofSettings", settingsBuffer);
-                pass.draw(3, 1, 0, 0);
+                pass.draw(0, 3);
             }
 
             main.drawBlit(scratch.getColorAttachmentView());
@@ -107,8 +107,7 @@ public final class DoFRenderer {
                     .putVec4(s.focusBreathingStrength(), s.bokehBlades(), s.bokehStretchX(), s.bokehStretchY())
                     .putVec4(s.highlightBoost(), Math.max(8, Math.min(64, s.sampleCount())), s.nearQuality(), s.farQuality())
                     .putVec4(s.nearBlur() ? 1.0f : 0.0f, s.farBlur() ? 1.0f : 0.0f,
-                            s.depthBleedProtection() ? 1.0f : 0.0f,
-                            RenderSystem.getDevice().getDeviceInfo().isZZeroToOne() ? 1.0f : 0.0f)
+                            s.depthBleedProtection() ? 1.0f : 0.0f, 0.0f)
                     .get();
             RenderSystem.getDevice().createCommandEncoder().writeToBuffer(settingsBuffer.slice(), data);
         }
@@ -116,12 +115,13 @@ public final class DoFRenderer {
 
     public static boolean hasFailed() { return failed; }
     public static String getFailureReason() { return failureReason; }
+    public static String failureReason() { return failureReason; }
+    public static void resetFailure() { failed = false; failureReason = ""; }
 
     public static void close() {
         RenderSystem.assertOnRenderThread();
         if (scratch != null) { scratch.delete(); scratch = null; }
         if (settingsBuffer != null) { settingsBuffer.close(); settingsBuffer = null; }
-        failed = false;
-        failureReason = "";
+        resetFailure();
     }
 }
