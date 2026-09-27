@@ -48,6 +48,8 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import re
+
           p = Path('cinematic-dof-phase3b-1.21.11/src/client/java/com/indiancalm/cinematicdof/render/DoFRenderer.java')
           s = p.read_text()
 
@@ -62,68 +64,38 @@ jobs:
               'import net.minecraft.client.texture.GlTexture;\n'
           )
 
-          old = '''        int targetFramebuffer = GL11.glGetInteger(GL30.GL_DRAW_FRAMEBUFFER_BINDING);
+          replacement = '''        RenderTarget target = resolveRenderTarget(client);
+              if (target == null || target.width() <= 0 || target.height() <= 0) {
+                  return;
+              }
 
-          VIEWPORT.clear();
-          GL11.glGetIntegerv(GL11.GL_VIEWPORT, VIEWPORT);
-          int viewportX = VIEWPORT.get(0);
-          int viewportY = VIEWPORT.get(1);
-          int width = VIEWPORT.get(2);
-          int height = VIEWPORT.get(3);
-          if (width <= 0 || height <= 0) {
-              return;
+              VIEWPORT.clear();
+              GL11.glGetIntegerv(GL11.GL_VIEWPORT, VIEWPORT);
+              int oldX = VIEWPORT.get(0);
+              int oldY = VIEWPORT.get(1);
+              int oldW = VIEWPORT.get(2);
+              int oldH = VIEWPORT.get(3);
+              int oldDraw = GL11.glGetInteger(GL30.GL_DRAW_FRAMEBUFFER_BINDING);
+              int oldRead = GL11.glGetInteger(GL30.GL_READ_FRAMEBUFFER_BINDING);
+
+              try {
+                  ensureResources(target.width(), target.height());
+                  copyScene(target.framebuffer(), 0, 0, target.width(), target.height());
+                  drawDof(target.framebuffer(), 0, 0, target.width(), target.height(),
+                          settings, client.gameRenderer.getFarPlaneDistance());
+              } catch (Throwable throwable) {
+                  failed = true;
+                  failureReason = throwable.getClass().getSimpleName() + ": " +
+                          (throwable.getMessage() == null ? "unknown rendering error" : throwable.getMessage());
+                  System.err.println("[Cinematic DOF] Rendering disabled after an OpenGL error: " + failureReason);
+              } finally {
+                  GL30.glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, oldRead);
+                  GL30.glBindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER, oldDraw);
+                  GL11.glViewport(oldX, oldY, oldW, oldH);
+              }
           }
 
-          try {
-              ensureResources(width, height);
-              copyScene(targetFramebuffer, viewportX, viewportY, width, height);
-              drawDof(targetFramebuffer, viewportX, viewportY, width, height,
-                      settings, client.gameRenderer.getFarPlaneDistance());
-          } catch (Throwable throwable) {
-              failed = true;
-              failureReason = throwable.getClass().getSimpleName() + ": " +
-                      (throwable.getMessage() == null ? "unknown rendering error" : throwable.getMessage());
-              System.err.println("[Cinematic DOF] Rendering disabled after an OpenGL error: " + failureReason);
-          }
-          '''
-
-          new = '''        RenderTarget target = resolveRenderTarget(client);
-          if (target == null || target.width() <= 0 || target.height() <= 0) {
-              return;
-          }
-
-          VIEWPORT.clear();
-          GL11.glGetIntegerv(GL11.GL_VIEWPORT, VIEWPORT);
-          int oldX = VIEWPORT.get(0);
-          int oldY = VIEWPORT.get(1);
-          int oldW = VIEWPORT.get(2);
-          int oldH = VIEWPORT.get(3);
-          int oldDraw = GL11.glGetInteger(GL30.GL_DRAW_FRAMEBUFFER_BINDING);
-          int oldRead = GL11.glGetInteger(GL30.GL_READ_FRAMEBUFFER_BINDING);
-
-          try {
-              ensureResources(target.width(), target.height());
-              copyScene(target.framebuffer(), 0, 0, target.width(), target.height());
-              drawDof(target.framebuffer(), 0, 0, target.width(), target.height(),
-                      settings, client.gameRenderer.getFarPlaneDistance());
-          } catch (Throwable throwable) {
-              failed = true;
-              failureReason = throwable.getClass().getSimpleName() + ": " +
-                      (throwable.getMessage() == null ? "unknown rendering error" : throwable.getMessage());
-              System.err.println("[Cinematic DOF] Rendering disabled after an OpenGL error: " + failureReason);
-          } finally {
-              GL30.glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, oldRead);
-              GL30.glBindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER, oldDraw);
-              GL11.glViewport(oldX, oldY, oldW, oldH);
-          }
-          '''
-
-          if old not in s:
-              raise SystemExit('render block not found')
-          s = s.replace(old, new, 1)
-
-          marker = '    private static void ensureResources(int width, int height) {\n'
-          helper = '''    private static RenderTarget resolveRenderTarget(MinecraftClient client) {
+          private static RenderTarget resolveRenderTarget(MinecraftClient client) {
               if (!(RenderSystem.getDevice() instanceof GlBackend backend)) {
                   return null;
               }
@@ -152,11 +124,17 @@ jobs:
 
           private record RenderTarget(int framebuffer, int width, int height) {}
 
-          '''
-          if marker not in s:
-              raise SystemExit('ensureResources marker not found')
-          s = s.replace(marker, helper + marker, 1)
-          p.write_text(s)
+          private static void ensureResources'''
+
+          pattern = re.compile(
+              r'        int targetFramebuffer = GL11\.glGetInteger\(GL30\.GL_DRAW_FRAMEBUFFER_BINDING\);.*?\n    private static void ensureResources',
+              re.S
+          )
+          s2, count = pattern.subn(replacement, s, count=1)
+          if count != 1:
+              raise SystemExit(f'framebuffer render block patch count={count}')
+
+          p.write_text(s2)
           PY
 
       - name: Build final Fabric mod
