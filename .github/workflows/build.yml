@@ -35,7 +35,7 @@ jobs:
         shell: bash
         run: |
           base64 -d .build/final_phase4.patch.gz.b64 | gzip -d > final_phase4.patch
-          patch -p0 < final_phase4.patch
+          patch -p1 < final_phase4.patch
 
       - name: Build final Fabric mod
         working-directory: cinematic-dof-phase3b-1.21.11
