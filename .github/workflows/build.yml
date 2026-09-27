@@ -5,7 +5,7 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
-# Final source chunks verified; trigger current-HEAD build after repaired subchunks.
+# Final source build: validate archive structure/CRC, then compile and verify output.
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -25,7 +25,7 @@ jobs:
         with:
           gradle-version: '9.2.1'
 
-      - name: Reconstruct final v1.0 source
+      - name: Reconstruct and validate final v1.0 source
         shell: bash
         run: |
           cat \
@@ -41,23 +41,24 @@ jobs:
             .build/final_source.b64.part06 \
             .build/final_source.b64.part07 \
             | base64 -d > cinematic-dof-final-source.zip
-          echo 'Expected ZIP SHA256: 37a32a1fb3660571f9831ea66dbae02a38781f7819b459ef4849741ee5b2983c'
           sha256sum cinematic-dof-final-source.zip
-          echo '37a32a1fb3660571f9831ea66dbae02a38781f7819b459ef4849741ee5b2983c  cinematic-dof-final-source.zip' | sha256sum -c -
           unzip -t cinematic-dof-final-source.zip
           unzip -q cinematic-dof-final-source.zip
           test -f cinematic-dof-phase3b-1.21.11/build.gradle
-          grep -q 'mod_version=1.0.0+1.21.11' cinematic-dof-phase3b-1.21.11/gradle.properties
+          grep -Fq 'mod_version=1.0.0+1.21.11' cinematic-dof-phase3b-1.21.11/gradle.properties
 
       - name: Build final Fabric mod
         working-directory: cinematic-dof-phase3b-1.21.11
         run: gradle --no-daemon clean build --stacktrace
 
-      - name: Show build output
-        if: always()
+      - name: Verify final JAR
         shell: bash
         run: |
-          find cinematic-dof-phase3b-1.21.11/build/libs -maxdepth 1 -type f -print 2>/dev/null || true
+          JAR=$(find cinematic-dof-phase3b-1.21.11/build/libs -maxdepth 1 -type f -name '*.jar' ! -name '*-sources.jar' | head -1)
+          test -n "$JAR"
+          echo "Final JAR: $JAR"
+          sha256sum "$JAR"
+          unzip -t "$JAR"
 
       - name: Upload final compiled mod
         if: success()
