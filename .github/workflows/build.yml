@@ -1,4 +1,4 @@
-name: Build Cinematic DOF Final
+name: Build Cinematic DOF Blaze3D Hotfix
 
 on:
   push:
@@ -24,7 +24,7 @@ jobs:
         with:
           gradle-version: '9.2.1'
 
-      - name: Reconstruct final v1.0 source
+      - name: Reconstruct source
         shell: bash
         run: |
           cat \
@@ -43,118 +43,30 @@ jobs:
           unzip -q -o cinematic-dof-final-source.zip || true
           cp .build/ConfigManager.java cinematic-dof-phase3b-1.21.11/src/client/java/com/indiancalm/cinematicdof/config/ConfigManager.java
 
-      - name: Patch black-screen renderer
+      - name: Install Blaze3D-native renderer
         shell: bash
         run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          import re
+          cp .build/DoFRenderer.modern.java cinematic-dof-phase3b-1.21.11/src/client/java/com/indiancalm/cinematicdof/render/DoFRenderer.java
+          mkdir -p cinematic-dof-phase3b-1.21.11/src/client/resources/assets/cinematicdof/shaders/core
+          cp .build/depth_of_field.fsh cinematic-dof-phase3b-1.21.11/src/client/resources/assets/cinematicdof/shaders/core/depth_of_field.fsh
 
-          p = Path('cinematic-dof-phase3b-1.21.11/src/client/java/com/indiancalm/cinematicdof/render/DoFRenderer.java')
-          s = p.read_text()
-
-          s = s.replace(
-              'import com.mojang.blaze3d.systems.RenderSystem;\nimport net.minecraft.client.MinecraftClient;\n',
-              'import com.mojang.blaze3d.systems.RenderSystem;\n'
-              'import com.mojang.blaze3d.textures.GpuTexture;\n'
-              'import com.mojang.blaze3d.textures.GpuTextureView;\n'
-              'import net.minecraft.client.MinecraftClient;\n'
-              'import net.minecraft.client.gl.Framebuffer;\n'
-              'import net.minecraft.client.gl.GlBackend;\n'
-              'import net.minecraft.client.texture.GlTexture;\n'
-          )
-
-          replacement = '''        RenderTarget target = resolveRenderTarget(client);
-              if (target == null || target.width() <= 0 || target.height() <= 0) {
-                  return;
-              }
-
-              VIEWPORT.clear();
-              GL11.glGetIntegerv(GL11.GL_VIEWPORT, VIEWPORT);
-              int oldX = VIEWPORT.get(0);
-              int oldY = VIEWPORT.get(1);
-              int oldW = VIEWPORT.get(2);
-              int oldH = VIEWPORT.get(3);
-              int oldDraw = GL11.glGetInteger(GL30.GL_DRAW_FRAMEBUFFER_BINDING);
-              int oldRead = GL11.glGetInteger(GL30.GL_READ_FRAMEBUFFER_BINDING);
-
-              try {
-                  ensureResources(target.width(), target.height());
-                  copyScene(target.framebuffer(), 0, 0, target.width(), target.height());
-                  drawDof(target.framebuffer(), 0, 0, target.width(), target.height(),
-                          settings, client.gameRenderer.getFarPlaneDistance());
-              } catch (Throwable throwable) {
-                  failed = true;
-                  failureReason = throwable.getClass().getSimpleName() + ": " +
-                          (throwable.getMessage() == null ? "unknown rendering error" : throwable.getMessage());
-                  System.err.println("[Cinematic DOF] Rendering disabled after an OpenGL error: " + failureReason);
-              } finally {
-                  GL30.glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, oldRead);
-                  GL30.glBindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER, oldDraw);
-                  GL11.glViewport(oldX, oldY, oldW, oldH);
-              }
-          }
-
-          private static RenderTarget resolveRenderTarget(MinecraftClient client) {
-              if (!(RenderSystem.getDevice() instanceof GlBackend backend)) {
-                  return null;
-              }
-
-              GpuTexture color;
-              GpuTexture depth;
-              GpuTextureView overrideColor = RenderSystem.outputColorTextureOverride;
-              GpuTextureView overrideDepth = RenderSystem.outputDepthTextureOverride;
-
-              if (overrideColor != null) {
-                  color = overrideColor.texture();
-                  depth = overrideDepth != null ? overrideDepth.texture() : null;
-              } else {
-                  Framebuffer framebuffer = client.getFramebuffer();
-                  color = framebuffer.getColorAttachment();
-                  depth = framebuffer.getDepthAttachment();
-              }
-
-              if (!(color instanceof GlTexture glColor) || depth == null) {
-                  return null;
-              }
-
-              int fbo = glColor.getOrCreateFramebuffer(backend.getBufferManager(), depth);
-              return new RenderTarget(fbo, color.getWidth(0), color.getHeight(0));
-          }
-
-          private record RenderTarget(int framebuffer, int width, int height) {}
-
-          private static void ensureResources'''
-
-          pattern = re.compile(
-              r'        int targetFramebuffer = GL11\.glGetInteger\(GL30\.GL_DRAW_FRAMEBUFFER_BINDING\);.*?\n    private static void ensureResources',
-              re.S
-          )
-          s2, count = pattern.subn(replacement, s, count=1)
-          if count != 1:
-              raise SystemExit(f'framebuffer render block patch count={count}')
-
-          p.write_text(s2)
-          PY
-
-      - name: Build final Fabric mod
+      - name: Build Fabric mod
         working-directory: cinematic-dof-phase3b-1.21.11
         run: gradle --no-daemon clean build --stacktrace
 
-      - name: Verify final JAR
+      - name: Verify JAR
         shell: bash
         run: |
           JAR=$(find cinematic-dof-phase3b-1.21.11/build/libs -maxdepth 1 -type f -name '*.jar' ! -name '*-sources.jar' | head -1)
           test -n "$JAR"
-          echo "Final JAR: $JAR"
           sha256sum "$JAR"
           unzip -t "$JAR"
 
-      - name: Upload final compiled mod
+      - name: Upload compiled mod
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: cinematic-dof-black-screen-hotfix-1.21.11
+          name: cinematic-dof-blaze3d-hotfix-1.21.11
           path: |
             cinematic-dof-phase3b-1.21.11/build/libs/*.jar
             !cinematic-dof-phase3b-1.21.11/build/libs/*-sources.jar
