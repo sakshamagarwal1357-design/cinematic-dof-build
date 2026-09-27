@@ -32,7 +32,8 @@ jobs:
             .build/final_source.b64.part00 \
             .build/final_source.b64.part01 \
             .build/final_source.b64.part02a \
-            .build/final_source.b64.part02b \
+            .build/final_source.b64.part02b0 \
+            .build/final_source.b64.part02b1 \
             .build/final_source.b64.part02c \
             .build/final_source.b64.part03 \
             .build/final_source.b64.part04 \
