@@ -5,7 +5,7 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
-# Final source chunks verified/repaired on 2026-09-27.
+# Final source chunks verified; trigger current-HEAD build after repaired subchunks.
 jobs:
   build:
     runs-on: ubuntu-latest
